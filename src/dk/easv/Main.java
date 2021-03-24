@@ -10,13 +10,15 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception{
-        Parent root = FXMLLoader.load(getClass().getResource("ImageViewerWindow.fxml"));
-
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("ImageViewerWindow.fxml"));
+        Parent root = loader.load();
+        ImageViewerWindowController imageViewerWindowController = loader.getController();
         Scene scene = new Scene(root);
 
         primaryStage.setScene(scene);
         primaryStage.setTitle("Image Viewer");
         primaryStage.show();
+        primaryStage.setOnCloseRequest(v -> imageViewerWindowController.closeThreadIfActive());
     }
 
 
