@@ -33,10 +33,16 @@ import javax.imageio.ImageWriter;
 import javax.xml.transform.Result;
 
 public class ImageViewerWindowController implements Initializable {
+    static int i = 0;
     private static final List<DisplayedImage> images = new ArrayList<>();
     public ButtonBar bBar;
     public Text text;
     private int currentImageIndex = 0;
+    List<ImageViewerWindowController> cons = new ArrayList<>(Arrays.asList(this));
+    Thread changeImage = new Thread(()->{
+        cons.get(i%cons.size()).handleBtnNextAction();
+        i++;
+    });
     AtomicReference<ScheduledExecutorService> scheduledExecutorService = new AtomicReference<>();
     BooleanProperty isActive = new SimpleBooleanProperty(false);
 
@@ -129,7 +135,6 @@ public class ImageViewerWindowController implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        Thread changeImage = new Thread(this::handleBtnNextAction);
         DoubleProperty time = new SimpleDoubleProperty(1);
         Button startButton = new Button("Start");
         Button stopButton = new Button("Stop");
@@ -150,6 +155,7 @@ public class ImageViewerWindowController implements Initializable {
                 e.printStackTrace();
             }
             ImageViewerWindowController imageViewerWindowController = loader.getController();
+            cons.add(imageViewerWindowController);
             Scene scene = new Scene(root);
 
             stage.setScene(scene);
@@ -170,10 +176,15 @@ public class ImageViewerWindowController implements Initializable {
         });
 
         stopButton.setOnAction((s) -> {
+            if(scheduledExecutorService!=null)
             scheduledExecutorService.get().shutdownNow();
             isActive.set(false);
         });
 
+    }
+
+    public Thread getThread() {
+        return changeImage;
     }
 
     public void closeThreadIfActive() {
