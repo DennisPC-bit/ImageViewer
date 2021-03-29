@@ -1,7 +1,5 @@
 package dk.easv;
 
-import java.awt.image.BufferedImage;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -12,6 +10,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javafx.beans.property.*;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -19,36 +18,50 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Slider;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
 import javafx.stage.FileChooser.ExtensionFilter;
 import javafx.stage.Stage;
 
-import javax.imageio.ImageReader;
-import javax.imageio.ImageWriter;
-import javax.xml.transform.Result;
+import javax.imageio.ImageIO;
 
 public class ImageViewerWindowController implements Initializable {
-    static int i = 0;
-    private static final List<DisplayedImage> images = new ArrayList<>();
-    public ButtonBar bBar;
-    public Text text;
+    public HBox hBox;
+    @FXML
+    private CheckBox box;
+    @FXML
+    private ButtonBar bBar;
+    @FXML
+    private Text text;
+    @FXML
+    private final Slider slider = new Slider();
+    @FXML
+    private BorderPane root;
+
     private int currentImageIndex = 0;
-    List<ImageViewerWindowController> cons = new ArrayList<>(Arrays.asList(this));
-    Thread changeImage = new Thread(()->{
-        cons.get(i%cons.size()).handleBtnNextAction();
+    private static int i = 0;
+    private static final DoubleProperty time = new SimpleDoubleProperty(1);
+    private static final AtomicReference<ScheduledExecutorService> scheduledExecutorService = new AtomicReference<>();
+    private final BooleanProperty isActive = new SimpleBooleanProperty(false);
+
+
+    private static final List<DisplayedImage> images = new ArrayList<>();
+    protected static final List<ImageViewerWindowController> cons = new ArrayList<>();
+    private final Thread changeImage = new Thread(() -> {
+        cons.get(i % cons.size()).handleBtnNextAction();
         i++;
     });
-    AtomicReference<ScheduledExecutorService> scheduledExecutorService = new AtomicReference<>();
-    BooleanProperty isActive = new SimpleBooleanProperty(false);
 
-
-    @FXML
-    Parent root;
+    public ImageViewerWindowController() {
+        cons.add(this);
+    }
 
     @FXML
     private ImageView imageView;
@@ -89,8 +102,8 @@ public class ImageViewerWindowController implements Initializable {
 
     private void displayImage() {
         if (!images.isEmpty()) {
-            images.forEach(i->{
-                if(i.getImage()==imageView.getImage())
+            images.forEach(i -> {
+                if (i.getImage() == imageView.getImage())
                     i.setDisplayed(false);
             });
             images.get(currentImageIndex).setDisplayed(true);
@@ -98,16 +111,20 @@ public class ImageViewerWindowController implements Initializable {
             imageView.setImage(image);
             File file = new File(images.get(currentImageIndex).getImage().getUrl());
             text.setText(file.getName().split("\\.")[0]);
-            /*
-                go(image, 4);
-             */
+            go(image, 16);
         }
     }
 
     private void go(Image image, int threads) {
         Instant start = Instant.now();
         List<ImageAnalyzer> anal = new ArrayList<>();
-
+        while(true)
+        {
+            if(image.getWidth()%threads==0)
+                break;
+            else
+                threads--;
+        }
         for (int i = 0; i < threads; i++) {
             int width = (int) image.getWidth() / threads;
             anal.add(new ImageAnalyzer(image, 1 + (i * width), (i + 1) * width, 1, (int) image.getHeight()));
@@ -135,56 +152,43 @@ public class ImageViewerWindowController implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        DoubleProperty time = new SimpleDoubleProperty(1);
         Button startButton = new Button("Start");
         Button stopButton = new Button("Stop");
         Button multiview = new Button("multiView");
-        Slider slider = new Slider();
         bBar.getButtons().add(startButton);
         bBar.getButtons().add(stopButton);
         bBar.getButtons().add(slider);
         bBar.getButtons().add(multiview);
+        box.setSelected(true);
 
-        multiview.setOnAction(v -> {
-            Stage stage = new Stage();
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("ImageViewerWindow.fxml"));
-            Parent root = null;
-            try {
-                root = loader.load();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            ImageViewerWindowController imageViewerWindowController = loader.getController();
-            cons.add(imageViewerWindowController);
-            Scene scene = new Scene(root);
-
-            stage.setScene(scene);
-            stage.setTitle("Image Viewer");
-            stage.show();
-            stage.setOnCloseRequest(d -> imageViewerWindowController.closeThreadIfActive());
+        box.selectedProperty().addListener((observable, t1, t2) -> {
+            if (t1) {
+                cons.forEach(c -> {
+                    c.root.setTop(null);
+                    c.box.setSelected(false);
+                });
+            } else
+                cons.forEach(
+                        c -> {
+                            c.root.setTop(c.hBox);
+                            c.box.setSelected(true);
+                        });
         });
+
+        multiview.setOnAction(this::openNewStage);
 
         startButton.setOnAction((s) -> {
-            isActive.set(true);
             startSlideshow(changeImage, time);
         });
-        slider.setOnMouseReleased(v -> {
-            time.set(1 + slider.getValue() * 5 / 100);
-            if (isActive.get()) {
-                startSlideshow(changeImage, time);
-            }
-        });
 
-        stopButton.setOnAction((s) -> {
-            if(scheduledExecutorService!=null)
-            scheduledExecutorService.get().shutdownNow();
-            isActive.set(false);
-        });
+        slider.setOnMouseReleased(v -> setSlideshowSpeed(changeImage, slider));
+
+        stopButton.setOnAction(v -> stopSlideshow());
 
     }
 
-    public Thread getThread() {
-        return changeImage;
+    public Slider getSlider() {
+        return slider;
     }
 
     public void closeThreadIfActive() {
@@ -198,5 +202,38 @@ public class ImageViewerWindowController implements Initializable {
         }
         scheduledExecutorService.set(Executors.newSingleThreadScheduledExecutor());
         scheduledExecutorService.get().scheduleAtFixedRate(changeImage, time.intValue(), time.intValue(), TimeUnit.SECONDS);
+    }
+
+    private void stopSlideshow() {
+        if (scheduledExecutorService.get() != null)
+            scheduledExecutorService.get().shutdownNow();
+        isActive.set(false);
+    }
+
+    private void setSlideshowSpeed(Thread thread, Slider slider) {
+        time.set(1 + slider.getValue() * 5 / 100);
+        if (isActive.get()) {
+            startSlideshow(thread, time);
+        }
+        cons.forEach(c -> c.getSlider().setValue(slider.getValue()));
+    }
+
+    private void openNewStage(ActionEvent v) {
+        Stage stage = new Stage();
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("ImageViewerWindow.fxml"));
+        Parent root = null;
+        try {
+            root = loader.load();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        ImageViewerWindowController imageViewerWindowController = loader.getController();
+        //imageViewerWindowController.bBar.getButtons().clear();
+        Scene scene = new Scene(root);
+
+        stage.setScene(scene);
+        stage.setTitle("Image Viewer");
+        stage.show();
+        stage.setOnCloseRequest(d -> imageViewerWindowController.closeThreadIfActive());
     }
 }
