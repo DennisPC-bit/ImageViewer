@@ -3,7 +3,6 @@ package dk.easv;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.sql.SQLOutput;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -69,7 +68,6 @@ public class ImageViewerWindowController implements Initializable {
     private static final DoubleProperty time = new SimpleDoubleProperty(1);
     private static final AtomicReference<ScheduledExecutorService> scheduledExecutorService = new AtomicReference<>();
     private final BooleanProperty isActive = new SimpleBooleanProperty(false);
-    private final String[] colors = {"Blue", "Green", "Red", "Grey"};
     private Main main;
 
 
