@@ -39,7 +39,7 @@ public class ImageAnalyzer extends Task<Map<String, Integer>> implements Callabl
     }
 
     @Override
-    public Map<String, Integer> call() {
+    public synchronized Map<String, Integer> call() {
         int blueCount = 0;
         int greenCount = 0;
         int redCount = 0;

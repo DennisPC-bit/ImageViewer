@@ -165,12 +165,12 @@ public class ImageViewerWindowController implements Initializable {
             e.printStackTrace();
         }
 
+        List<String> colors = new ArrayList<>(ImageAnalyzer.getColorMap().keySet());
+        colors.sort(Comparator.comparingInt(c -> ImageAnalyzer.getColorMap().get(c)).reversed());
         Platform.runLater(new Thread(() -> {
-            colorDisplay.getChildren().clear();
-            List<String> colors = new ArrayList<>(ImageAnalyzer.getColorMap().keySet());
-            colors.sort(Comparator.comparingInt(c -> ImageAnalyzer.getColorMap().get(c)).reversed());
             AtomicInteger j = new AtomicInteger(0);
             ImageAnalyzer.getColorMap().values().forEach(j::addAndGet);
+            colorDisplay.getChildren().clear();
             for (String color : colors) {
                 Circle c = new Circle(8, Paint.valueOf(color));
                 Text t = new Text(String.format("%s(%.02f%%)", color, (float) ImageAnalyzer.getColorMap().get(color) * 100 / j.get()));
